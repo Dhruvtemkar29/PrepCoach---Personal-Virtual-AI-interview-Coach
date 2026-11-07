@@ -1,24 +1,94 @@
 
-@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
 
 @import "tailwindcss";
 
-@theme {
-  --color-void: #050505;
-  --color-abyss: #0A0A0A;
-  --color-carbon: #111111;
-  --color-graphite: #1A1A1A;
-  --color-steel: #2A2A2A;
+/* =========================================
+   PREPCOACH - GLOBAL DESIGN SYSTEM
+========================================= */
 
-  --color-ember: #FF2E2E;
-  --color-crimson: #DC2626;
-  --color-blood: #991B1B;
-  --color-coral: #FF6B6B;
+:root {
+  font-family: "Inter", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 
-  --font-sora: "Sora", sans-serif;
-  --font-inter: "Inter", sans-serif;
+  --accent: #ff2e2e;
+  --accent-hover: #dc2626;
+  --accent-soft: rgba(255, 46, 46, 0.12);
+
+  --font-heading: "Plus Jakarta Sans", sans-serif;
+  --font-body: "Inter", sans-serif;
   --font-mono: "JetBrains Mono", monospace;
+  --dropdown-bg: #ffffff;
+  --dropdown-text: #171923;
+  --dropdown-border: rgba(0, 0, 0, 0.10);
+  --dropdown-hover: #f3f4f6;
 }
+
+/* =========================================
+   DARK THEME
+========================================= */
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg-primary: #08090e;
+  --bg-secondary: #101116;
+  --bg-card: rgba(255, 255, 255, 0.055);
+  --bg-glass: rgba(255, 255, 255, 0.065);
+  --bg-glass-hover: rgba(255, 255, 255, 0.10);
+
+  --text-primary: #f5f5f7;
+  --text-secondary: #b0b0bb;
+  --text-muted: #858591;
+
+  --border-color: rgba(255, 255, 255, 0.12);
+  --glass-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  --input-bg: rgba(255, 255, 255, 0.045);
+  --grid-color: rgba(255, 255, 255, 0.035);
+
+  --surface-elevated: #191a22;
+  --surface-hover: rgba(255, 255, 255, 0.07);
+  --chart-grid: rgba(255, 255, 255, 0.10);
+
+  --dropdown-bg: #191c27;
+  --dropdown-text: #f5f5f5;
+  --dropdown-border: rgba(255, 255, 255, 0.10);
+  --dropdown-hover: rgba(255, 255, 255, 0.07);
+}
+
+/* =========================================
+   LIGHT THEME
+========================================= */
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg-primary: #f4f3f2;
+  --bg-secondary: #eeeceb;
+  --bg-card: rgba(255, 255, 255, 0.72);
+  --bg-glass: rgba(255, 255, 255, 0.68);
+  --bg-glass-hover: rgba(255, 255, 255, 0.90);
+
+  --text-primary: #202027;
+  --text-secondary: #62626c;
+  --text-muted: #85858f;
+
+  --border-color: rgba(255, 255, 255, 0.85);
+  --glass-shadow: 0 12px 40px rgba(40, 30, 30, 0.07);
+  --input-bg: rgba(255, 255, 255, 0.65);
+  --grid-color: rgba(50, 40, 40, 0.045);
+
+  --surface-elevated: #ffffff;
+  --surface-hover: rgba(0, 0, 0, 0.035);
+  --chart-grid: rgba(0, 0, 0, 0.09);
+}
+
+/* =========================================
+   GLOBAL RESET
+========================================= */
 
 * {
   box-sizing: border-box;
@@ -26,40 +96,460 @@
 
 html {
   scroll-behavior: smooth;
+  min-width: 320px;
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: var(--color-void);
-  color: #E5E5E5;
-  font-family: var(--font-inter);
-  overflow-x: hidden;
+
+  background: var(--bg-primary);
+  color: var(--text-primary);
+
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.6;
+
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+
+#root {
+  min-height: 100vh;
+  color: var(--text-primary);
 }
 
 button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
 a {
-  -webkit-tap-highlight-color: transparent;
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  max-width: 100%;
+}
+
+/* =========================================
+   TYPOGRAPHY
+========================================= */
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading);
+  color: var(--text-primary);
+  line-height: 1.3;
+  font-weight: 700;
+}
+
+p,
+span,
+label,
+li {
+  /* Text inherits the theme unless explicitly styled */
+}
+
+.font-sora,
+.font-heading {
+  font-family: var(--font-heading);
+}
+
+.font-body {
+  font-family: var(--font-body);
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+.text-primary {
+  color: var(--text-primary);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+/* =========================================
+   DARK MODE TEXT VISIBILITY FIX
+========================================= */
+
+[data-theme="dark"] {
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .text-black,
+[data-theme="dark"] .text-gray-900,
+[data-theme="dark"] .text-gray-800,
+[data-theme="dark"] .text-neutral-900,
+[data-theme="dark"] .text-slate-900,
+[data-theme="dark"] .text-zinc-900 {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] input,
+[data-theme="dark"] textarea,
+[data-theme="dark"] select {
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder {
+  color: var(--text-muted);
+}
+
+[data-theme="light"] input,
+[data-theme="light"] textarea,
+[data-theme="light"] select {
+  color: var(--text-primary);
+}
+
+/* =========================================
+   APPLICATION BACKGROUND
+========================================= */
+
+.app-background {
+  min-height: 100vh;
+  position: relative;
+
+  background:
+    radial-gradient(
+      ellipse at 5% 5%,
+      rgba(255, 46, 46, 0.13),
+      transparent 35%
+    ),
+    radial-gradient(
+      ellipse at 95% 90%,
+      rgba(153, 27, 27, 0.10),
+      transparent 35%
+    ),
+    var(--bg-primary);
+}
+
+[data-theme="light"] .app-background {
+  background:
+    radial-gradient(
+      ellipse at 5% 5%,
+      rgba(255, 46, 46, 0.09),
+      transparent 35%
+    ),
+    radial-gradient(
+      ellipse at 95% 90%,
+      rgba(255, 107, 107, 0.09),
+      transparent 35%
+    ),
+    var(--bg-primary);
+}
+
+/* =========================================
+   GLASSMORPHISM COMPONENTS
+========================================= */
+
+.glass {
+  background: var(--bg-glass);
+  border: 1px solid var(--border-color);
+
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-card {
+  background: var(--bg-glass);
+  border: 1px solid var(--border-color);
+
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+
+  border-radius: 20px;
+  box-shadow: var(--glass-shadow);
+
+  color: var(--text-primary);
+
+  transition:
+    background 0.25s ease,
+    transform 0.25s ease,
+    border-color 0.25s ease;
+}
+
+.glass-card:hover {
+  background: var(--bg-glass-hover);
+  border-color: rgba(255, 46, 46, 0.25);
+}
+
+.glass-sidebar {
+  background: var(--bg-glass);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+
+  border-right: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.glass-navbar {
+  background: var(--bg-glass);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+
+  border: 1px solid var(--border-color);
+  box-shadow: var(--glass-shadow);
+
+  color: var(--text-primary);
+}
+
+/* =========================================
+   INPUTS AND FORMS
+========================================= */
+
+.glass-input {
+  width: 100%;
+
+  color: var(--text-primary);
+  background: var(--input-bg);
+
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+
+  padding: 11px 14px;
+  outline: none;
+
+  transition: 0.2s ease;
+}
+
+.glass-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(255, 46, 46, 0.10);
+}
+
+.glass-input::placeholder {
+  color: var(--text-muted);
+}
+
+select,
+option {
+  color: var(--text-primary);
+  background-color: var(--surface-elevated);
+}
+
+textarea {
+  color: var(--text-primary);
+}
+
+/* =========================================
+   BUTTONS
+========================================= */
+
+.primary-button {
+  background: linear-gradient(135deg, #ff3b3b, #dc2626);
+  color: #ffffff !important;
+
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+
+  padding: 11px 18px;
+  font-weight: 600;
+
+  box-shadow: 0 6px 22px rgba(255, 46, 46, 0.22);
+
+  transition: 0.25s ease;
+}
+
+.primary-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(255, 46, 46, 0.32);
+}
+
+.secondary-button {
+  background: var(--bg-glass);
+  color: var(--text-primary);
+
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+
+  padding: 11px 16px;
+
+  transition: 0.2s ease;
+}
+
+.secondary-button:hover {
+  background: var(--bg-glass-hover);
+  border-color: rgba(255, 46, 46, 0.35);
+}
+
+/* =========================================
+   TEXT EFFECTS
+========================================= */
+
+.gradient-text {
+  background: linear-gradient(100deg, #ff2e2e, #ff7777);
+
+  background-clip: text;
+  -webkit-background-clip: text;
+
+  color: transparent;
+}
+
+.accent-text {
+  color: var(--accent);
+}
+
+/* =========================================
+   DASHBOARD GRID
+========================================= */
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+}
+
+@media (max-width: 1100px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =========================================
+   TABLES
+========================================= */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--text-primary);
+}
+
+th {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+td {
+  color: var(--text-primary);
+}
+
+tr {
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* =========================================
+   MODALS AND OVERLAYS
+========================================= */
+
+.glass-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+
+  box-shadow: var(--glass-shadow);
+  color: var(--text-primary);
+}
+
+/* =========================================
+   FOCUS AND ACCESSIBILITY
+========================================= */
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
 ::selection {
-  background: #FF2E2E;
-  color: #050505;
+  color: #ffffff;
+  background: var(--accent);
 }
+
+/* =========================================
+   SCROLLBAR
+========================================= */
 
 ::-webkit-scrollbar {
   width: 7px;
+  height: 7px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0A0A0A;
+  background: var(--bg-primary);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(#991B1B, #FF2E2E);
+  background: #555;
   border-radius: 10px;
 }
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* =========================================
+   ANIMATIONS
+========================================= */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease forwards;
+}
+
+/* =========================================
+   RESPONSIVE
+========================================= */
+
+@media (max-width: 768px) {
+  .glass-card {
+    border-radius: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  body {
+    font-size: 13px;
+  }
+}
+
+/* =========================================
+   REDUCED MOTION
+========================================= */
 
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -67,6 +557,7 @@ a {
   *::after {
     scroll-behavior: auto !important;
     animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }
