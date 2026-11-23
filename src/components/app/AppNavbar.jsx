@@ -12,9 +12,11 @@ import {
   Person,
   Settings,
   ArrowForward,
+  Logout,
 } from "@mui/icons-material";
 
 import ThemeToggle from "../common/ThemeToggle";
+import { useAuth } from "../../context/AuthContext";
 
 const searchItems = [
   { name: "Overview", path: "/app" },
@@ -30,6 +32,7 @@ const searchItems = [
 
 export default function AppNavbar({ onMenuClick }) {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
   const headerRef = useRef(null);
   const searchRef = useRef(null);
@@ -476,7 +479,7 @@ export default function AppNavbar({ onMenuClick }) {
               text-sm font-bold text-white
               shadow-md shadow-red-500/10
             ">
-              D
+              {user?.full_name ? user.full_name.charAt(0).toUpperCase() : "U"}
             </div>
 
             <div className="hidden text-left md:block">
@@ -484,13 +487,13 @@ export default function AppNavbar({ onMenuClick }) {
                 text-xs font-semibold
                 text-[var(--text-primary)]
               ">
-                Your Profile
+                {user?.full_name || "Your Profile"}
               </p>
 
               <p className="
                 text-[10px] text-[var(--text-muted)]
               ">
-                Free Account
+                {user?.email || "Free Account"}
               </p>
             </div>
 
@@ -503,7 +506,7 @@ export default function AppNavbar({ onMenuClick }) {
           {/* Profile Dropdown Menu */}
           {showProfile && (
             <div className="
-              w-[210px] p-2
+              w-[220px] p-2
               absolute z-50 right-0 top-12
               rounded-2xl overflow-hidden
               border border-[var(--dropdown-border)]
@@ -519,15 +522,17 @@ export default function AppNavbar({ onMenuClick }) {
                 <p className="
                   text-xs font-semibold
                   text-[var(--text-primary)]
+                  truncate
                 ">
-                  Your Profile
+                  {user?.full_name || "Your Profile"}
                 </p>
 
                 <p className="
                   mt-1 text-[10px]
                   text-[var(--text-muted)]
+                  truncate
                 ">
-                  Manage your account
+                  {user?.email || "Manage your account"}
                 </p>
               </div>
 
@@ -562,6 +567,28 @@ export default function AppNavbar({ onMenuClick }) {
                 <Settings sx={{ fontSize: 18 }} />
                 Settings
               </NavLink>
+
+              <div className="my-1 border-t border-[var(--border-color)]" />
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowProfile(false);
+                  logout();
+                  navigate("/auth");
+                }}
+                className="
+                  flex w-full items-center gap-3
+                  rounded-xl px-3 py-2.5 text-xs
+                  text-red-400
+                  transition-colors
+                  hover:bg-red-500/10
+                  hover:text-red-300
+                "
+              >
+                <Logout sx={{ fontSize: 18 }} />
+                Sign Out
+              </button>
             </div>
           )}
         </div>

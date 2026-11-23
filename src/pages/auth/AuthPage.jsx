@@ -1,7 +1,7 @@
 import {
     useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState,
 } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
     AnimatePresence, MotionConfig, animate, motion, useAnimationControls,
     useMotionValue, useReducedMotion, useSpring,
@@ -11,6 +11,7 @@ import {
     Refresh, Visibility, VisibilityOff,
 } from "@mui/icons-material";
 import * as ThemeModule from "../../context/ThemeContext";
+import { useAuth } from "../../context/AuthContext";
 
 import "./AuthPage.css";
 
@@ -593,6 +594,15 @@ function RecoveryBooth({ initialEmail, onClose, onDone }) {
 /* ------------------------------------------------------------------ */
 
 export default function AuthPage({ onLogin, onSignup }) {
+    const navigate = useNavigate();
+    const { login: authLogin, signup: authSignup, isAuthenticated } = useAuth();
+
+    useEffect(() => {
+        if (isAuthenticated) {
+            navigate("/app", { replace: true });
+        }
+    }, [isAuthenticated, navigate]);
+
     const uid = useId();
     const reduce = useReducedMotion();
     const ctx = useThemeCompat();
@@ -741,14 +751,21 @@ export default function AuthPage({ onLogin, onSignup }) {
         }
         setNotice(null);
         setBusy(true);
-        const handler = which === "login" ? onLogin : onSignup;
+        const handler = which === "login" ? (onLogin || authLogin) : (onSignup || authSignup);
         const values = which === "login"
             ? { email: login.email.trim(), password: login.password, remember: login.remember }
             : { name: signup.name.trim(), email: signup.email.trim(), password: signup.password };
         if (handler) {
-            try { await handler(values); }
-            catch (err) { setNotice({ kind: "err", text: err?.message || "Something went wrong. Try again." }); }
-            finally { setBusy(false); }
+            try {
+                await handler(values);
+                navigate("/app", { replace: true });
+            }
+            catch (err) {
+                setNotice({ kind: "err", text: err?.message || "Something went wrong. Try again." });
+            }
+            finally {
+                setBusy(false);
+            }
             return;
         }
         later(() => {
@@ -969,7 +986,7 @@ export default function AuthPage({ onLogin, onSignup }) {
                             </div>
 
                             <p className={`pc-card__note${notice ? ` is-${notice.kind}` : ""}`} role="status">
-                                {notice ? notice.text : "Demo build. Validation runs in your browser; no server is connected."}
+                                {notice ? notice.text : ""}
                             </p>
                         </div>
                     </section>

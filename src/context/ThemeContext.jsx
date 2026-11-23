@@ -9,7 +9,7 @@ import {
 import { ThemeProvider as MuiThemeProvider } from "@mui/material/styles";
 import { getAppTheme } from "../theme/theme";
 
-const ThemeContext = createContext(null);
+export const ThemeContext = createContext(null);
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {

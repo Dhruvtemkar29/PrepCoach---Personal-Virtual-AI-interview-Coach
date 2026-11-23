@@ -1,5 +1,7 @@
-
 import { Routes, Route, Navigate } from "react-router-dom";
+
+import { AuthProvider } from "./context/AuthContext";
+import ProtectedRoute from "./components/auth/ProtectedRoute";
 
 import LandingPage from "./pages/LandingPage";
 import AuthPage from "./pages/auth/AuthPage";
@@ -17,28 +19,32 @@ import ResumeBuilderPage from "./pages/ResumeBuilderPage";
 
 export default function App() {
   return (
-    <Routes>
-      {/* Public Website */}
-      <Route path="/" element={<LandingPage />} />
+    <AuthProvider>
+      <Routes>
+        {/* Public Website */}
+        <Route path="/" element={<LandingPage />} />
 
-      {/* Authentication */}
-      <Route path="/auth" element={<AuthPage />} />
+        {/* Authentication */}
+        <Route path="/auth" element={<AuthPage />} />
 
-      {/* Software Application */}
-      <Route path="/app" element={<AppLayout />}>
-        <Route index element={<DashboardPage />} />
-        <Route path="interview" element={<InterviewPage />} />
-        <Route path="history" element={<HistoryPage />} />
-        <Route path="analytics" element={<AnalyticsPage />} />
-        <Route path="resumes" element={<ResumeManagerPage />} />
-        <Route path="roadmap" element={<RoadmapPage />} />
-        <Route path="profile" element={<ProfilePage />} />
-        <Route path="settings" element={<SettingsPage />} />
-        <Route path="resume-builder" element={<ResumeBuilderPage />} />
-      </Route>
+        {/* Software Application (Protected) */}
+        <Route element={<ProtectedRoute />}>
+          <Route path="/app" element={<AppLayout />}>
+            <Route index element={<DashboardPage />} />
+            <Route path="interview" element={<InterviewPage />} />
+            <Route path="history" element={<HistoryPage />} />
+            <Route path="analytics" element={<AnalyticsPage />} />
+            <Route path="resumes" element={<ResumeManagerPage />} />
+            <Route path="roadmap" element={<RoadmapPage />} />
+            <Route path="profile" element={<ProfilePage />} />
+            <Route path="settings" element={<SettingsPage />} />
+            <Route path="resume-builder" element={<ResumeBuilderPage />} />
+          </Route>
+        </Route>
 
-      {/* Fallback */}
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </AuthProvider>
   );
 }
