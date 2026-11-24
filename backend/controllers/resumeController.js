@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const db = require("../config/db");
+const { extractResumeText } = require("../services/aiService");
 
 const BACKEND_ROOT = path.resolve(__dirname, "..");
 const UPLOAD_DIR = path.resolve(BACKEND_ROOT, "uploads/resumes");
@@ -63,16 +64,25 @@ exports.uploadResumes = async (req, res) => {
     const uploadedResumes = [];
 
     for (const file of files) {
+      // Extract text content using AI parser
+      let extractedText = null;
+      try {
+        extractedText = await extractResumeText(file.path, file.originalname);
+      } catch (e) {
+        console.warn("Could not extract resume text on upload:", e.message);
+      }
+
       const [result] = await connection.query(
         `INSERT INTO resumes
-         (user_id, file_name, file_path, file_type, file_size, is_active)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+         (user_id, file_name, file_path, file_type, file_size, extracted_text, is_active)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           req.user.userId,
           file.originalname,
           path.posix.join("uploads", "resumes", file.filename),
           path.extname(file.originalname).slice(1).toUpperCase(),
           file.size,
+          extractedText,
           shouldActivate ? 1 : 0,
         ]
       );

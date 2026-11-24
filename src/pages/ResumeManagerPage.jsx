@@ -27,6 +27,7 @@ import {
   deleteResume as apiDeleteResume,
   downloadResume as apiDownloadResume,
 } from "../services/resumeService";
+import { analyzeAIResume } from "../services/aiService";
 
 const MAX_SIZE = 5 * 1024 * 1024;
 const ACCEPTED_TYPES = [".pdf", ".docx", ".txt"];
@@ -77,6 +78,8 @@ export default function ResumeManagerPage() {
   const [search, setSearch] = useState("");
   const [dragging, setDragging] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState(null);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("info"); // 'info' | 'error' | 'success'
 
@@ -259,6 +262,26 @@ export default function ResumeManagerPage() {
     } catch (err) {
       setMessage(err.message || "Failed to download resume file.");
       setMessageType("error");
+    }
+  };
+
+  const handleAnalyzeResume = async () => {
+    if (!selected) return;
+    try {
+      setAnalyzing(true);
+      setMessage("AI analyzing resume contents...");
+      setMessageType("info");
+      const res = await analyzeAIResume({ resume_id: selected.id });
+      if (res && res.analysis) {
+        setAnalysis(res.analysis);
+        setMessage("AI resume analysis complete!");
+        setMessageType("success");
+      }
+    } catch (err) {
+      setMessage(err.message || "Failed to analyze resume with AI.");
+      setMessageType("error");
+    } finally {
+      setAnalyzing(false);
     }
   };
 
@@ -648,7 +671,10 @@ export default function ResumeManagerPage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
-            onClick={() => setSelectedId(null)}
+            onClick={() => {
+              setSelectedId(null);
+              setAnalysis(null);
+            }}
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.96, y: 15 }}
@@ -669,7 +695,10 @@ export default function ResumeManagerPage() {
                 </h2>
 
                 <button
-                  onClick={() => setSelectedId(null)}
+                  onClick={() => {
+              setSelectedId(null);
+              setAnalysis(null);
+            }}
                   aria-label="Close details"
                   className="rounded-lg p-2 transition hover:bg-[var(--glass-bg)]"
                 >
@@ -719,7 +748,47 @@ export default function ResumeManagerPage() {
                 This panel displays document metadata stored in MySQL.
               </p>
 
+              {analysis && (
+                <div className="mt-4 space-y-3 rounded-xl border border-red-500/30 bg-red-500/[0.04] p-4 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-red-400 flex items-center gap-1.5">
+                      <AutoAwesome fontSize="small" /> AI Resume Assessment
+                    </span>
+                    <span className="rounded-full bg-red-500/20 px-2 py-0.5 font-bold text-red-400">
+                      Match: {analysis.role_match_score}%
+                    </span>
+                  </div>
+                  <p className="text-[var(--text-secondary)]">{analysis.summary}</p>
+                  <div>
+                    <span className="font-semibold text-[var(--text-primary)]">Skills detected:</span>
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {analysis.extracted_skills?.map((s) => (
+                        <span key={s} className="rounded-md bg-[var(--input-bg)] border border-[var(--border-color)] px-2 py-0.5 text-[10px]">
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  {analysis.missing_skills?.length > 0 && (
+                    <div>
+                      <span className="font-semibold text-yellow-500">Recommended additions:</span>
+                      <p className="text-[var(--text-muted)] mt-0.5">{analysis.missing_skills.join(", ")}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={handleAnalyzeResume}
+                  disabled={analyzing}
+                  className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-400 transition hover:bg-red-500/20 disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  <AutoAwesome fontSize="small" />
+                  {analyzing ? "Analyzing..." : "Analyze with AI"}
+                </button>
+
                 {!selected.active && (
                   <button
                     onClick={() => {
@@ -742,7 +811,10 @@ export default function ResumeManagerPage() {
               </div>
 
               <button
-                onClick={() => setSelectedId(null)}
+                onClick={() => {
+              setSelectedId(null);
+              setAnalysis(null);
+            }}
                 className="mt-3 w-full rounded-xl border border-[var(--border-color)] py-3 text-sm font-semibold transition hover:bg-[var(--glass-bg)]"
               >
                 Close

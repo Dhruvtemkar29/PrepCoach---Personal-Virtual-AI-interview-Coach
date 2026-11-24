@@ -1,7 +1,10 @@
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
+import { useAuth } from "../context/AuthContext";
+import { getInterviewHistory } from "../services/interviewService";
+import { fetchRoadmapRecommendations } from "../services/roadmapService";
 
 import {
   ArrowUpward,
@@ -152,10 +155,10 @@ function SectionHeading({ title, subtitle, action }) {
 // INTERVIEW READINESS
 // --------------------------------------------------
 
-function ReadinessCard() {
-  const score = 78;
+function ReadinessCard({ score = 78 }) {
+  const currentScore = Math.max(10, Math.min(100, Math.round(Number(score) || 78)));
   const circumference = 2 * Math.PI * 48;
-  const offset = circumference - (score / 100) * circumference;
+  const offset = circumference - (currentScore / 100) * circumference;
 
   return (
     <GlassCard className="relative overflow-hidden !border-red-500/20 bg-gradient-to-br from-red-500/10 to-transparent">
@@ -453,7 +456,9 @@ function WeeklyActivity() {
 // RECENT INTERVIEWS
 // --------------------------------------------------
 
-function RecentSessions({ onViewAll }) {
+function RecentSessions({ onViewAll, items = [] }) {
+  const displaySessions = items && items.length > 0 ? items : sessions;
+
   return (
     <GlassCard>
       <SectionHeading
@@ -472,7 +477,7 @@ function RecentSessions({ onViewAll }) {
       />
 
       <div className="mt-4 space-y-1">
-        {sessions.map((session, index) => (
+        {displaySessions.map((session, index) => (
           <div
             key={`${session.role}-${index}`}
             className="flex flex-wrap items-center justify-between gap-3 rounded-xl px-3 py-4 transition hover:bg-[var(--bg-glass-hover)]"
@@ -513,7 +518,14 @@ function RecentSessions({ onViewAll }) {
 // AI RECOMMENDATIONS
 // --------------------------------------------------
 
-function AIRecommendations({ onStartPractice }) {
+function AIRecommendations({ onStartPractice, recommendations }) {
+  const focus = recommendations?.primary_focus_area || "Communication and confidence";
+  const tip =
+    recommendations?.actionable_tip ||
+    "Focus on communication and confidence. Practice explaining your technical solutions using structured examples.";
+  const topic =
+    recommendations?.recommended_topics?.[0] || "Behavioral Interview Practice";
+
   return (
     <GlassCard className="relative overflow-hidden">
       <div className="absolute -right-12 -top-12 h-32 w-32 rounded-full bg-red-500/10 blur-3xl" />
@@ -528,19 +540,18 @@ function AIRecommendations({ onStartPractice }) {
         </div>
 
         <h3 className="font-sora text-lg font-semibold">
-          Your next improvement
+          Focus: {focus}
         </h3>
 
         <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
-          Focus on communication and confidence. Practice explaining your
-          technical solutions using structured examples.
+          {tip}
         </p>
 
         <div className="mt-5 flex items-center gap-2 rounded-xl border border-red-500/15 bg-red-500/5 p-3">
           <CheckCircle className="text-[#ff5555]" fontSize="small" />
 
           <p className="text-xs">
-            Recommended: Behavioral Interview Practice
+            Recommended: {topic}
           </p>
         </div>
 
@@ -563,6 +574,36 @@ function AIRecommendations({ onStartPractice }) {
 
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const [dbInterviews, setDbInterviews] = useState([]);
+  const [recommendations, setRecommendations] = useState(null);
+
+  useEffect(() => {
+    async function loadInterviews() {
+      try {
+        const data = await getInterviewHistory();
+        if (Array.isArray(data)) {
+          setDbInterviews(data);
+        }
+      } catch (err) {
+        console.warn("Using sample dashboard data:", err.message);
+      }
+    }
+
+    async function loadRecs() {
+      try {
+        const rec = await fetchRoadmapRecommendations();
+        if (rec) {
+          setRecommendations(rec);
+        }
+      } catch (err) {
+        console.info("Using baseline recommendations:", err.message);
+      }
+    }
+
+    loadInterviews();
+    loadRecs();
+  }, []);
 
   const currentDate = useMemo(() => {
     return new Date()
@@ -574,6 +615,89 @@ export default function DashboardPage() {
       })
       .toUpperCase();
   }, []);
+
+  const userName = useMemo(() => {
+    if (user?.full_name) {
+      return user.full_name.trim().split(" ")[0];
+    }
+    return "Candidate";
+  }, [user]);
+
+  const computedStats = useMemo(() => {
+    if (!dbInterviews.length) return stats;
+
+    const total = dbInterviews.length;
+    const scores = dbInterviews
+      .map((i) => Number(i.overall_score))
+      .filter((s) => !isNaN(s) && s > 0);
+    const avg = scores.length
+      ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+      : 80;
+    const totalMinutes = dbInterviews.reduce(
+      (a, b) => a + (Number(b.duration_minutes) || 15),
+      0
+    );
+    const hours = (totalMinutes / 60).toFixed(1);
+
+    return [
+      {
+        label: "Total Interviews",
+        value: String(total),
+        change: "+100%",
+        detail: "in your profile",
+        icon: Psychology,
+      },
+      {
+        label: "Average Score",
+        value: `${avg}%`,
+        change: avg >= 75 ? "Strong" : "Improving",
+        detail: "across all sessions",
+        icon: EmojiEvents,
+      },
+      {
+        label: "Practice Hours",
+        value: `${hours}h`,
+        change: `${total} sessions`,
+        detail: "total practice time",
+        icon: AccessTime,
+      },
+      {
+        label: "Practice Streak",
+        value: `${Math.min(total, 7)} Days`,
+        change: "Active",
+        detail: "keep going!",
+        icon: LocalFireDepartment,
+      },
+    ];
+  }, [dbInterviews]);
+
+  const recentSessionsList = useMemo(() => {
+    if (!dbInterviews.length) return sessions;
+    return dbInterviews.slice(0, 4).map((i) => ({
+      role: i.target_role || "Software Developer",
+      type: `${i.interview_type || "Technical"} Interview`,
+      date: i.started_at
+        ? new Date(i.started_at).toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : "Recent",
+      score: i.overall_score ? Math.round(Number(i.overall_score)) : 75,
+      status: i.status === "completed" ? "Completed" : "In Progress",
+    }));
+  }, [dbInterviews]);
+
+  const readinessScore = useMemo(() => {
+    if (!dbInterviews.length) return 78;
+    const scores = dbInterviews
+      .map((i) => Number(i.overall_score))
+      .filter((s) => !isNaN(s) && s > 0);
+    return scores.length
+      ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+      : 78;
+  }, [dbInterviews]);
 
   const handleStartInterview = () => {
     navigate("/app/interview");
@@ -600,7 +724,7 @@ export default function DashboardPage() {
 
           <h1 className="font-sora text-2xl font-bold md:text-3xl">
             Welcome back,{" "}
-            <span className="gradient-text">Dhruv!</span>
+            <span className="gradient-text">{userName}!</span>
           </h1>
 
           <p className="mt-2 text-sm text-[var(--text-secondary)]">
@@ -621,7 +745,7 @@ export default function DashboardPage() {
       {/* KPI CARDS */}
 
       <div className="dashboard-grid">
-        {stats.map((stat, index) => {
+        {computedStats.map((stat, index) => {
           const Icon = stat.icon;
 
           return (
@@ -658,7 +782,7 @@ export default function DashboardPage() {
 
       {/* INTERVIEW READINESS */}
 
-      <ReadinessCard />
+      <ReadinessCard score={readinessScore} />
 
       {/* ANALYTICS */}
 
@@ -675,13 +799,17 @@ export default function DashboardPage() {
         </div>
 
         <AIRecommendations
+          recommendations={recommendations}
           onStartPractice={handleStartInterview}
         />
       </div>
 
       {/* RECENT INTERVIEW SESSIONS */}
 
-      <RecentSessions onViewAll={handleViewHistory} />
+      <RecentSessions
+        items={recentSessionsList}
+        onViewAll={handleViewHistory}
+      />
 
       {/* DEMO DATA NOTICE */}
 

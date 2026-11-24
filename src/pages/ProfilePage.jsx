@@ -17,6 +17,8 @@ import {
   CheckCircle,
 } from "@mui/icons-material";
 import GlassCard from "../components/ui/GlassCard";
+import { fetchUserProfile, saveUserProfile } from "../services/profileService";
+import { useAuth } from "../context/AuthContext";
 
 const STORAGE_KEY = "prepcoach-user-profile";
 
@@ -159,11 +161,44 @@ function ProfileSelect({
 }
 
 export default function ProfilePage() {
+  const { user } = useAuth();
   const [profile, setProfile] = useState(getInitialProfile);
   const [originalProfile, setOriginalProfile] = useState(getInitialProfile);
   const [editing, setEditing] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [emailError, setEmailError] = useState("");
+
+  useEffect(() => {
+    async function loadBackendProfile() {
+      try {
+        const data = await fetchUserProfile();
+        if (data) {
+          const mapped = {
+            name: data.full_name || user?.full_name || "",
+            email: data.email || user?.email || "",
+            phone: data.phone || "",
+            location: data.location || "",
+            education: data.education || "",
+            university: data.university || "",
+            experience: data.experience_level || "Fresher",
+            targetRole: data.target_role || "Software Developer",
+            skills: Array.isArray(data.skills)
+              ? data.skills.join(", ")
+              : data.skills || "",
+            careerGoal: data.career_goal || "",
+            interviewType: "Technical",
+            difficulty: "Intermediate",
+          };
+          setProfile(mapped);
+          setOriginalProfile(mapped);
+        }
+      } catch (err) {
+        console.warn("Using local profile fallback:", err.message);
+      }
+    }
+    loadBackendProfile();
+  }, [user]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
@@ -205,7 +240,7 @@ export default function ProfilePage() {
     );
   }, [profile]);
 
-  const initials = profile.name
+  const initials = (profile.name || "User")
     .trim()
     .split(/\s+/)
     .filter(Boolean)
@@ -227,7 +262,7 @@ export default function ProfilePage() {
     setEmailError("");
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
 
     const email = profile.email.trim();
@@ -251,6 +286,28 @@ export default function ProfilePage() {
       STORAGE_KEY,
       JSON.stringify(updatedProfile)
     );
+
+    try {
+      setSaving(true);
+      await saveUserProfile({
+        full_name: updatedProfile.name,
+        phone: updatedProfile.phone,
+        location: updatedProfile.location,
+        education: updatedProfile.education,
+        university: updatedProfile.university,
+        experience_level: updatedProfile.experience,
+        target_role: updatedProfile.targetRole,
+        skills: updatedProfile.skills
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+        career_goal: updatedProfile.careerGoal,
+      });
+    } catch (err) {
+      console.warn("Backend sync failed:", err.message);
+    } finally {
+      setSaving(false);
+    }
 
     setEditing(false);
     setSaved(true);

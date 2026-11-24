@@ -1,6 +1,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { sendChatMessage } from "../../services/aiService";
 import {
   SmartToy,
   Close,
@@ -196,7 +197,7 @@ export default function PrepBot() {
   }, []);
 
   // Send message
-  const sendMessage = (text = input) => {
+  const sendMessage = async (text = input) => {
     const messageText = text.trim();
 
     if (!messageText || isTyping) return;
@@ -211,6 +212,31 @@ export default function PrepBot() {
     setInput("");
     setIsTyping(true);
 
+    try {
+      const historyPayload = messages.slice(-4).map((m) => ({
+        role: m.sender === "bot" ? "assistant" : "user",
+        content: m.text,
+      }));
+
+      const res = await sendChatMessage({
+        message: messageText,
+        history: historyPayload,
+      });
+
+      if (res && res.reply) {
+        const botMessage = {
+          id: Date.now() + 1,
+          sender: "bot",
+          text: res.reply,
+        };
+        setMessages((previous) => [...previous, botMessage]);
+        setIsTyping(false);
+        return;
+      }
+    } catch {
+      // Graceful fallback to built-in response engine
+    }
+
     timerRef.current = window.setTimeout(() => {
       const botMessage = {
         id: Date.now() + 1,
@@ -221,7 +247,7 @@ export default function PrepBot() {
       setMessages((previous) => [...previous, botMessage]);
       setIsTyping(false);
       timerRef.current = null;
-    }, 900);
+    }, 600);
   };
 
   // Clear conversation
@@ -327,11 +353,10 @@ export default function PrepBot() {
               {messages.map((message) => (
                 <div
                   key={message.id}
-                  className={`flex gap-2 ${
-                    message.sender === "user"
+                  className={`flex gap-2 ${message.sender === "user"
                       ? "justify-end"
                       : "justify-start"
-                  }`}
+                    }`}
                 >
                   {message.sender === "bot" && (
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-red-500/10 text-[#ff5555]">
@@ -342,10 +367,9 @@ export default function PrepBot() {
                   <div
                     className={`
                       max-w-[82%] rounded-2xl px-3.5 py-3
-                      ${
-                        message.sender === "user"
-                          ? "rounded-br-sm bg-gradient-to-br from-[#ef4444] to-[#bd2020] text-white"
-                          : "rounded-bl-sm border border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-primary)]"
+                      ${message.sender === "user"
+                        ? "rounded-br-sm bg-gradient-to-br from-[#ef4444] to-[#bd2020] text-white"
+                        : "rounded-bl-sm border border-[var(--border-color)] bg-[var(--bg-secondary)] text-[var(--text-primary)]"
                       }
                     `}
                   >

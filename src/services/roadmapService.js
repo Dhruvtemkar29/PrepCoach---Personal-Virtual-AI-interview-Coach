@@ -88,3 +88,19 @@ export async function resetRoadmapProgress() {
 
   return data;
 }
+
+// 5. Fetch personalized AI learning recommendations
+export async function fetchRoadmapRecommendations() {
+  const response = await fetch(`${API_URL}/recommendations`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to fetch recommendations.");
+  }
+
+  return data.recommendations;
+}

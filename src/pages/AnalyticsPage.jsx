@@ -1,6 +1,7 @@
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
+import { getInterviewHistory } from "../services/interviewService";
 
 import {
   TrendingUp,
@@ -572,20 +573,63 @@ function AIInsights() {
 
 export default function AnalyticsPage() {
   const [range, setRange] = useState("30 Days");
+  const [dbInterviews, setDbInterviews] = useState([]);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const data = await getInterviewHistory();
+        if (Array.isArray(data)) {
+          setDbInterviews(data);
+        }
+      } catch (err) {
+        console.warn("Using sample analytics data:", err.message);
+      }
+    }
+    loadData();
+  }, []);
 
   const currentData = useMemo(() => {
     const selected = analyticsData[range];
 
-    const average = Math.round(
-      selected.scores.reduce((sum, score) => sum + score, 0) /
-        selected.scores.length
+    if (!dbInterviews.length) {
+      const average = Math.round(
+        selected.scores.reduce((sum, score) => sum + score, 0) /
+          selected.scores.length
+      );
+      return {
+        ...selected,
+        average,
+      };
+    }
+
+    const completed = dbInterviews.filter((i) => i.status === "completed");
+    const validScores = completed
+      .map((i) => Number(i.overall_score))
+      .filter((s) => !isNaN(s) && s > 0);
+
+    const average = validScores.length
+      ? Math.round(validScores.reduce((sum, s) => sum + s, 0) / validScores.length)
+      : 80;
+
+    const totalMinutes = dbInterviews.reduce(
+      (sum, i) => sum + (Number(i.duration_minutes) || 15),
+      0
     );
+    const hours = Number((totalMinutes / 60).toFixed(1));
+
+    // Dynamic scores from completed interviews or fallback to sample
+    const scores = validScores.length >= 3 ? validScores.slice(-7) : selected.scores;
+    const labels = scores.map((_, idx) => `S${idx + 1}`);
 
     return {
-      ...selected,
+      scores,
+      labels,
+      interviews: dbInterviews.length,
+      hours,
       average,
     };
-  }, [range]);
+  }, [range, dbInterviews]);
 
   return (
     <div className="space-y-7">

@@ -9,6 +9,7 @@ const settingsRoutes = require("./routes/settingsRoutes");
 const resumeRoutes = require("./routes/resumeRoutes");
 const interviewRoutes = require("./routes/interviewRoutes");
 const roadmapRoutes = require("./routes/roadmapRoutes");
+const aiRoutes = require("./routes/aiRoutes");
 
 const app = express();
 
@@ -50,6 +51,7 @@ app.use("/api/settings", settingsRoutes);
 app.use("/api/resumes", resumeRoutes);
 app.use("/api/interviews", interviewRoutes);
 app.use("/api/roadmap", roadmapRoutes);
+app.use("/api/ai", aiRoutes);
 
 const PORT = process.env.PORT || 5000;
 
