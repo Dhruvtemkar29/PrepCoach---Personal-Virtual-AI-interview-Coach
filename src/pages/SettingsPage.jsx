@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Settings,
   Tune,
@@ -22,6 +22,7 @@ import {
 
 import GlassCard from "../components/ui/GlassCard";
 import { useTheme } from "../context/ThemeContext";
+import { fetchUserSettings, saveUserSettings } from "../services/settingsService";
 
 const STORAGE_KEY = "prepcoach-settings";
 
@@ -181,6 +182,46 @@ export default function SettingsPage() {
 
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Load settings from backend API
+  const loadBackendSettings = useCallback(async () => {
+    try {
+      setLoading(true);
+      const remote = await fetchUserSettings();
+      if (remote) {
+        if (remote.notifications) {
+          setNotifications((prev) => ({ ...prev, ...remote.notifications }));
+        }
+        if (remote.privacy_settings) {
+          setPrivacy((prev) => ({ ...prev, ...remote.privacy_settings }));
+        }
+        setPreferences((prev) => ({
+          ...prev,
+          interviewType: remote.preferred_interview_type || prev.interviewType,
+          difficulty: remote.preferred_difficulty || prev.difficulty,
+          duration: remote.preferred_duration
+            ? `${remote.preferred_duration} minutes`
+            : prev.duration,
+          questions: remote.questions_per_interview
+            ? String(remote.questions_per_interview)
+            : prev.questions,
+          weeklyGoal: remote.weekly_goal
+            ? `${remote.weekly_goal} hours`
+            : prev.weeklyGoal,
+        }));
+      }
+    } catch (err) {
+      console.warn("Backend settings unavailable, using local cache:", err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadBackendSettings();
+  }, [loadBackendSettings]);
 
   // Update interview preferences
   const updatePreference = (key, value) => {
@@ -216,18 +257,33 @@ export default function SettingsPage() {
   };
 
   // Save all settings
-  const saveSettings = () => {
+  const saveSettings = async () => {
     try {
+      setSaving(true);
+      setSaveError("");
+
+      const durationMatch = parseInt(preferences.duration, 10) || 15;
+      const questionsMatch = parseInt(preferences.questions, 10) || 5;
+      const goalMatch = parseInt(preferences.weeklyGoal, 10) || 3;
+
+      await saveUserSettings({
+        preferred_interview_type: preferences.interviewType,
+        preferred_difficulty: preferences.difficulty,
+        preferred_duration: durationMatch,
+        questions_per_interview: questionsMatch,
+        weekly_goal: goalMatch,
+        theme: isDark ? "dark" : "light",
+        notifications,
+        privacy_settings: privacy,
+      });
+
       const settings = {
         notifications,
         preferences,
         privacy,
       };
 
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify(settings)
-      );
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
 
       setSaved(true);
       setSaveError("");
@@ -235,8 +291,10 @@ export default function SettingsPage() {
       console.error("Unable to save PrepCoach settings:", error);
       setSaved(false);
       setSaveError(
-        "Unable to save settings. Please check your browser storage."
+        error.message || "Unable to save settings to server. Please try again."
       );
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -296,10 +354,11 @@ export default function SettingsPage() {
         <button
           type="button"
           onClick={saveSettings}
-          className="primary-button flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition"
+          disabled={saving}
+          className="primary-button flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition disabled:opacity-50"
         >
           <Save fontSize="small" />
-          Save Settings
+          {saving ? "Saving..." : "Save Settings"}
         </button>
       </div>
 

@@ -1,5 +1,5 @@
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
 import {
   Route,
@@ -18,6 +18,11 @@ import {
   EmojiEvents,
 } from "@mui/icons-material";
 import GlassCard from "../components/ui/GlassCard";
+import {
+  fetchRoadmapTasks,
+  toggleRoadmapTask,
+  resetRoadmapProgress,
+} from "../services/roadmapService";
 
 const STORAGE_KEY = "prepcoach-roadmap-progress";
 
@@ -137,9 +142,41 @@ function getInitialWeeks() {
   }
 }
 
+function mapDatabaseTasksToWeeks(dbTasks) {
+  return initialWeeks.map((week) => {
+    const weekTasks = dbTasks.filter((t) => Number(t.week_number) === week.id);
+    if (!weekTasks.length) return week;
+
+    return {
+      ...week,
+      tasks: weekTasks.map((t) => ({
+        id: t.task_id,
+        title: t.task_title,
+        detail: t.task_description,
+        completed: Boolean(t.is_completed),
+      })),
+    };
+  });
+}
+
 export default function RoadmapPage() {
   const [weeks, setWeeks] = useState(getInitialWeeks);
   const [activeWeek, setActiveWeek] = useState(1);
+
+  const loadRoadmap = useCallback(async () => {
+    try {
+      const data = await fetchRoadmapTasks();
+      if (Array.isArray(data) && data.length > 0) {
+        setWeeks(mapDatabaseTasksToWeeks(data));
+      }
+    } catch (err) {
+      console.warn("Using local roadmap fallback:", err.message);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadRoadmap();
+  }, [loadRoadmap]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(weeks));
@@ -184,7 +221,7 @@ export default function RoadmapPage() {
     return Math.round((completed / week.tasks.length) * 100);
   };
 
-  const toggleTask = (weekId, taskId) => {
+  const toggleTask = async (weekId, taskId) => {
     setWeeks((previous) =>
       previous.map((week) =>
         week.id === weekId
@@ -199,16 +236,28 @@ export default function RoadmapPage() {
           : week
       )
     );
+
+    try {
+      await toggleRoadmapTask(taskId);
+    } catch (err) {
+      console.error("Failed to sync task toggle:", err.message);
+    }
   };
 
-  const resetProgress = () => {
+  const resetProgress = async () => {
     const confirmed = window.confirm(
       "Are you sure you want to reset all roadmap progress?"
     );
 
     if (!confirmed) return;
 
-    setWeeks(initialWeeks);
+    try {
+      await resetRoadmapProgress();
+      await loadRoadmap();
+    } catch (err) {
+      console.error("Failed to reset roadmap in DB:", err.message);
+      setWeeks(initialWeeks);
+    }
     setActiveWeek(1);
     localStorage.removeItem(STORAGE_KEY);
   };

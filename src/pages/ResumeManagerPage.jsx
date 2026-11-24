@@ -1,5 +1,4 @@
-
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 
 import {
@@ -17,62 +16,90 @@ import {
   AutoAwesome,
   FolderOpen,
   PictureAsPdf,
+  Refresh,
 } from "@mui/icons-material";
 
 import GlassCard from "../components/ui/GlassCard";
+import {
+  getResumes,
+  uploadResumes,
+  setActiveResume as apiSetActiveResume,
+  deleteResume as apiDeleteResume,
+  downloadResume as apiDownloadResume,
+} from "../services/resumeService";
 
 const MAX_SIZE = 5 * 1024 * 1024;
 const ACCEPTED_TYPES = [".pdf", ".docx", ".txt"];
 
-const initialResumes = [
-  {
-    id: 1,
-    name: "Software_Developer_Resume.pdf",
-    role: "Software Developer",
-    size: "245 KB",
-    date: "28 Oct 2026",
-    type: "PDF",
-    status: "Sample",
-    active: true,
-    file: null,
-  },
-  {
-    id: 2,
-    name: "Frontend_Developer_CV.pdf",
-    role: "Frontend Developer",
-    size: "182 KB",
-    date: "24 Oct 2026",
-    type: "PDF",
-    status: "Sample",
-    active: false,
-    file: null,
-  },
-];
-
 function formatSize(bytes) {
+  if (!bytes) return "0 KB";
   return bytes < 1024 * 1024
     ? `${(bytes / 1024).toFixed(1)} KB`
     : `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-function formatDate() {
-  return new Date().toLocaleDateString("en-IN", {
+function formatDate(isoString) {
+  if (!isoString) {
+    return new Date().toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  }
+  return new Date(isoString).toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",
     year: "numeric",
   });
 }
 
+function mapDatabaseResume(item) {
+  return {
+    id: item.resume_id,
+    name: item.file_name,
+    role: "Standard Resume",
+    size: formatSize(Number(item.file_size) || 0),
+    date: formatDate(item.uploaded_at),
+    type: (item.file_type || "PDF").toUpperCase(),
+    status: item.is_active ? "Active" : "Stored",
+    active: Boolean(item.is_active),
+    uploadedAt: item.uploaded_at,
+  };
+}
+
 export default function ResumeManagerPage() {
   const fileInputRef = useRef(null);
 
-  const [resumes, setResumes] = useState(initialResumes);
+  const [resumes, setResumes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [actionId, setActionId] = useState(null);
   const [search, setSearch] = useState("");
   const [dragging, setDragging] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("info"); // 'info' | 'error' | 'success'
 
   const selected = resumes.find((resume) => resume.id === selectedId);
+
+  // Load resumes from backend API
+  const loadResumes = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await getResumes();
+      setResumes(data.map(mapDatabaseResume));
+    } catch (error) {
+      console.error("Error fetching resumes:", error);
+      setMessage(error.message || "Failed to load resumes.");
+      setMessageType("error");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadResumes();
+  }, [loadResumes]);
 
   // Close modal using Escape key
   useEffect(() => {
@@ -109,7 +136,7 @@ export default function ResumeManagerPage() {
   // UPLOAD RESUMES
   // ---------------------------------------------------
 
-  const uploadFiles = (fileList) => {
+  const uploadFiles = async (fileList) => {
     const incomingFiles = Array.from(fileList || []);
 
     if (!incomingFiles.length) return;
@@ -140,102 +167,99 @@ export default function ResumeManagerPage() {
       acceptedFiles.push(file);
     });
 
-    if (acceptedFiles.length > 0) {
-      setResumes((previous) => {
-        const alreadyHasActive = previous.some((item) => item.active);
-
-        const newResumes = acceptedFiles.map((file, index) => {
-          const extension = file.name.split(".").pop().toUpperCase();
-
-          return {
-            id: `${Date.now()}-${index}-${Math.random()}`,
-            name: file.name,
-            role: "Not specified",
-            size: formatSize(file.size),
-            date: formatDate(),
-            type: extension,
-            status: "Uploaded",
-            active: !alreadyHasActive && index === 0,
-            file,
-          };
-        });
-
-        return [...newResumes, ...previous];
-      });
+    if (errors.length) {
+      setMessage(errors.join(" "));
+      setMessageType("error");
+      return;
     }
 
-    setMessage(
-      errors.length
-        ? errors.join(" ")
-        : `${acceptedFiles.length} resume${acceptedFiles.length > 1 ? "s" : ""} uploaded successfully.`
-    );
+    if (acceptedFiles.length > 0) {
+      try {
+        setUploading(true);
+        setMessage("Uploading resume(s)...");
+        setMessageType("info");
+
+        const result = await uploadResumes(acceptedFiles);
+        setMessage(
+          result.message ||
+            `${acceptedFiles.length} resume(s) uploaded successfully.`
+        );
+        setMessageType("success");
+        await loadResumes();
+      } catch (err) {
+        setMessage(err.message || "Failed to upload resume(s).");
+        setMessageType("error");
+      } finally {
+        setUploading(false);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+      }
+    }
   };
 
   // ---------------------------------------------------
   // ACTIVE RESUME
   // ---------------------------------------------------
 
-  const setActiveResume = (id) => {
-    setResumes((previous) =>
-      previous.map((resume) => ({
-        ...resume,
-        active: resume.id === id,
-      }))
-    );
-
-    setMessage("Active resume updated successfully.");
+  const handleSetActive = async (id) => {
+    try {
+      setActionId(id);
+      await apiSetActiveResume(id);
+      setMessage("Active resume updated successfully.");
+      setMessageType("success");
+      setResumes((previous) =>
+        previous.map((resume) => ({
+          ...resume,
+          active: resume.id === id,
+          status: resume.id === id ? "Active" : "Stored",
+        }))
+      );
+    } catch (err) {
+      setMessage(err.message || "Failed to set active resume.");
+      setMessageType("error");
+    } finally {
+      setActionId(null);
+    }
   };
 
   // ---------------------------------------------------
   // DELETE RESUME
   // ---------------------------------------------------
 
-  const deleteResume = (id) => {
-    setResumes((previous) => {
-      const deletedResume = previous.find((item) => item.id === id);
-
-      let remaining = previous.filter((item) => item.id !== id);
-
-      if (deletedResume?.active && remaining.length > 0) {
-        remaining = remaining.map((item, index) => ({
-          ...item,
-          active: index === 0,
-        }));
+  const handleDelete = async (id) => {
+    try {
+      setActionId(id);
+      await apiDeleteResume(id);
+      setMessage("Resume removed from your library.");
+      setMessageType("success");
+      if (selectedId === id) {
+        setSelectedId(null);
       }
-
-      return remaining;
-    });
-
-    if (selectedId === id) {
-      setSelectedId(null);
+      await loadResumes();
+    } catch (err) {
+      setMessage(err.message || "Failed to delete resume.");
+      setMessageType("error");
+    } finally {
+      setActionId(null);
     }
-
-    setMessage("Resume removed from your library.");
   };
 
   // ---------------------------------------------------
   // DOWNLOAD RESUME
   // ---------------------------------------------------
 
-  const downloadResume = (resume) => {
-    if (!resume.file) {
-      setMessage(
-        "This is sample data. Upload a real resume to download it."
-      );
-      return;
+  const handleDownload = async (resume) => {
+    try {
+      setMessage(`Downloading ${resume.name}...`);
+      setMessageType("info");
+      await apiDownloadResume(resume.id, resume.name);
+      setMessage("Download ready.");
+      setMessageType("success");
+    } catch (err) {
+      setMessage(err.message || "Failed to download resume file.");
+      setMessageType("error");
     }
-
-    const url = URL.createObjectURL(resume.file);
-    const link = document.createElement("a");
-
-    link.href = url;
-    link.download = resume.name;
-
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   // ---------------------------------------------------
@@ -257,9 +281,9 @@ export default function ResumeManagerPage() {
     },
     {
       label: "Uploaded Files",
-      value: resumes.filter((resume) => resume.file).length,
+      value: resumes.length,
       icon: <CloudUpload />,
-      detail: "Added in this session",
+      detail: "Synced with server",
     },
     {
       label: "Supported Formats",
@@ -275,15 +299,12 @@ export default function ResumeManagerPage() {
 
   return (
     <div className="space-y-7 pb-10">
-
       {/* PAGE HEADER */}
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <div className="mb-2 flex items-center gap-2 text-sm text-[var(--accent)]">
             <Description fontSize="small" />
-            <span className="font-semibold tracking-wide">
-              RESUME CENTER
-            </span>
+            <span className="font-semibold tracking-wide">RESUME CENTER</span>
           </div>
 
           <h1 className="font-sora text-2xl font-bold sm:text-3xl">
@@ -291,18 +312,34 @@ export default function ResumeManagerPage() {
           </h1>
 
           <p className="mt-2 max-w-2xl text-sm text-[var(--text-secondary)]">
-            Organize your resumes and manage the documents used
-            for interview preparation.
+            Organize your resumes and manage the documents used for interview
+            preparation.
           </p>
         </div>
 
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="primary-button flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold"
-        >
-          <Add fontSize="small" />
-          Upload Resume
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={loadResumes}
+            disabled={loading}
+            title="Refresh resume list"
+            aria-label="Refresh"
+            className="flex items-center justify-center rounded-xl border border-[var(--border-color)] bg-[var(--glass-bg)] p-3 text-sm text-[var(--text-secondary)] transition hover:text-[var(--accent)] disabled:opacity-50"
+          >
+            <Refresh
+              fontSize="small"
+              className={loading ? "animate-spin" : ""}
+            />
+          </button>
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="primary-button flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold disabled:opacity-50"
+          >
+            <Add fontSize="small" />
+            {uploading ? "Uploading..." : "Upload Resume"}
+          </button>
+        </div>
       </div>
 
       {/* SUMMARY CARDS */}
@@ -335,9 +372,7 @@ export default function ResumeManagerPage() {
       {/* UPLOAD AREA */}
       <GlassCard>
         <div className="mb-5">
-          <h2 className="font-sora text-lg font-bold">
-            Upload a Resume
-          </h2>
+          <h2 className="font-sora text-lg font-bold">Upload a Resume</h2>
 
           <p className="mt-1 text-sm text-[var(--text-secondary)]">
             Add your latest resume to your personal document library.
@@ -353,98 +388,85 @@ export default function ResumeManagerPage() {
             event.preventDefault();
             setDragging(true);
           }}
-          onDragLeave={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget)) {
-              setDragging(false);
-            }
-          }}
+          onDragLeave={() => setDragging(false)}
           onDrop={(event) => {
             event.preventDefault();
             setDragging(false);
             uploadFiles(event.dataTransfer.files);
           }}
-          onClick={() => fileInputRef.current?.click()}
-          className={`cursor-pointer rounded-2xl border-2 border-dashed p-8 text-center transition-all sm:p-12 ${
+          className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition-all ${
             dragging
-              ? "border-[var(--accent)] bg-[var(--accent)]/10"
-              : "border-[var(--border-color)] hover:border-[var(--accent)] hover:bg-[var(--glass-bg)]"
+              ? "border-[var(--accent)] bg-[var(--accent)]/5"
+              : "border-[var(--border-color)] bg-[var(--input-bg)]"
           }`}
         >
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--accent)]/10 text-[var(--accent)]">
-            <CloudUpload sx={{ fontSize: 34 }} />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.docx,.txt"
+            multiple
+            className="hidden"
+            onChange={(event) => uploadFiles(event.target.files)}
+          />
+
+          <div className="mb-3 rounded-2xl bg-[var(--accent)]/10 p-4 text-[var(--accent)]">
+            <CloudUpload sx={{ fontSize: 32 }} />
           </div>
 
-          <h3 className="font-semibold">
-            {dragging ? (
-              "Drop your files here"
-            ) : (
-              <>
-                Drop your resume here or{" "}
-                <span className="text-[var(--accent)]">
-                  browse files
-                </span>
-              </>
-            )}
+          <h3 className="font-sora font-semibold">
+            Drag and drop your resume files here
           </h3>
 
-          <p className="mt-2 text-sm text-[var(--text-secondary)]">
-            PDF, DOCX or TXT · Maximum file size 5 MB
+          <p className="mt-1 text-xs text-[var(--text-secondary)]">
+            PDF, DOCX or TXT files up to 5 MB each.
           </p>
 
-          <p className="mt-4 text-xs text-[var(--text-secondary)]">
-            Your files are currently stored only in this browser session.
-          </p>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="secondary-button mt-4 rounded-xl px-4 py-2.5 text-xs font-semibold disabled:opacity-50"
+          >
+            {uploading ? "Uploading..." : "Browse Local Files"}
+          </button>
         </div>
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".pdf,.docx,.txt"
-          multiple
-          hidden
-          onChange={(event) => {
-            uploadFiles(event.target.files);
-            event.target.value = "";
-          }}
-        />
 
         {message && (
           <div
-            role="status"
-            className="mt-4 rounded-xl border border-[var(--accent)]/30 bg-[var(--accent)]/10 p-3 text-sm text-[var(--accent)]"
+            className={`mt-4 rounded-xl border px-4 py-3 text-xs ${
+              messageType === "error"
+                ? "border-red-500/30 bg-red-500/10 text-red-400"
+                : messageType === "success"
+                ? "border-green-500/30 bg-green-500/10 text-green-400"
+                : "border-[var(--border-color)] bg-[var(--glass-bg)] text-[var(--text-secondary)]"
+            }`}
           >
             {message}
           </div>
         )}
       </GlassCard>
 
-      {/* RESUME LIBRARY */}
-      <section>
-        <div className="mb-5 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+      {/* RESUME LIST SECTION */}
+      <div className="space-y-4">
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
           <div>
-            <h2 className="font-sora text-xl font-bold">
-              Your Resume Library
-            </h2>
-
-            <p className="mt-1 text-sm text-[var(--text-secondary)]">
-              Manage and select your interview documents.
+            <h2 className="font-sora text-lg font-bold">Uploaded Documents</h2>
+            <p className="mt-1 text-xs text-[var(--text-secondary)]">
+              Choose which resume to use during practice sessions.
             </p>
           </div>
 
-          <div className="glass-input flex items-center gap-2 rounded-xl px-3 py-2.5 sm:w-72">
+          <div className="flex w-full items-center gap-2 rounded-xl border border-[var(--border-color)] bg-[var(--input-bg)] px-3 py-2 sm:w-72">
             <Search
-              className="text-[var(--text-secondary)]"
               fontSize="small"
+              className="text-[var(--text-secondary)]"
             />
-
             <input
+              type="text"
+              placeholder="Search resumes..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search resumes or roles..."
-              aria-label="Search resumes"
-              className="w-full bg-transparent text-sm outline-none"
+              className="w-full bg-transparent text-xs outline-none"
             />
-
             {search && (
               <button
                 onClick={() => setSearch("")}
@@ -458,7 +480,14 @@ export default function ResumeManagerPage() {
         </div>
 
         <div className="space-y-3">
-          {filteredResumes.length === 0 ? (
+          {loading ? (
+            <GlassCard className="py-12 text-center">
+              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-[var(--accent)] border-t-transparent" />
+              <p className="mt-3 text-xs text-[var(--text-muted)]">
+                Loading your resume library...
+              </p>
+            </GlassCard>
+          ) : filteredResumes.length === 0 ? (
             <GlassCard className="py-12 text-center">
               <FolderOpen
                 sx={{ fontSize: 42 }}
@@ -510,9 +539,7 @@ export default function ResumeManagerPage() {
 
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="break-all font-semibold">
-                        {resume.name}
-                      </h3>
+                      <h3 className="break-all font-semibold">{resume.name}</h3>
 
                       {resume.active && (
                         <span className="flex items-center gap-1 rounded-full bg-[var(--accent)]/10 px-2 py-1 text-[10px] font-bold text-[var(--accent)]">
@@ -546,7 +573,7 @@ export default function ResumeManagerPage() {
                   </button>
 
                   <button
-                    onClick={() => downloadResume(resume)}
+                    onClick={() => handleDownload(resume)}
                     title="Download"
                     aria-label={`Download ${resume.name}`}
                     className="rounded-lg border border-[var(--border-color)] p-2 transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
@@ -554,20 +581,26 @@ export default function ResumeManagerPage() {
                     <Download fontSize="small" />
                   </button>
 
-                  {!resume.active && (
-                    <button
-                      onClick={() => setActiveResume(resume.id)}
-                      className="rounded-lg border border-[var(--border-color)] px-3 py-2 text-xs font-semibold transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-                    >
-                      Set Active
-                    </button>
-                  )}
+                  <button
+                    onClick={() => handleSetActive(resume.id)}
+                    disabled={resume.active || actionId === resume.id}
+                    title={resume.active ? "Active resume" : "Set as active"}
+                    aria-label={`Set ${resume.name} as active`}
+                    className={`rounded-lg border p-2 transition ${
+                      resume.active
+                        ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]"
+                        : "border-[var(--border-color)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                    }`}
+                  >
+                    <Star fontSize="small" />
+                  </button>
 
                   <button
-                    onClick={() => deleteResume(resume.id)}
-                    title="Delete"
+                    onClick={() => handleDelete(resume.id)}
+                    disabled={actionId === resume.id}
+                    title="Delete resume"
                     aria-label={`Delete ${resume.name}`}
-                    className="rounded-lg border border-[var(--border-color)] p-2 text-[var(--text-secondary)] transition hover:border-red-500 hover:text-red-500"
+                    className="rounded-lg border border-[var(--border-color)] p-2 text-red-400 transition hover:border-red-500 hover:bg-red-500/10 hover:text-red-300"
                   >
                     <Delete fontSize="small" />
                   </button>
@@ -576,7 +609,7 @@ export default function ResumeManagerPage() {
             ))
           )}
         </div>
-      </section>
+      </div>
 
       {/* AI RESUME INTELLIGENCE */}
       <GlassCard className="relative overflow-hidden">
@@ -594,15 +627,15 @@ export default function ResumeManagerPage() {
               </h3>
 
               <p className="mt-2 max-w-xl text-sm leading-relaxed text-[var(--text-secondary)]">
-                Resume parsing, skill extraction, job-description
-                matching, and personalized improvement suggestions
-                will be connected in the AI backend integration.
+                Resume parsing, skill extraction, job-description matching, and
+                personalized improvement suggestions will be connected via the
+                AI service layer.
               </p>
             </div>
           </div>
 
           <span className="w-fit shrink-0 rounded-full border border-[var(--border-color)] px-3 py-2 text-xs text-[var(--text-secondary)]">
-            Backend integration pending
+            AI Service Stage
           </span>
         </div>
       </GlassCard>
@@ -650,9 +683,7 @@ export default function ResumeManagerPage() {
                 </div>
 
                 <div className="min-w-0">
-                  <h3 className="break-all font-semibold">
-                    {selected.name}
-                  </h3>
+                  <h3 className="break-all font-semibold">{selected.name}</h3>
 
                   <p className="mt-1 text-xs text-[var(--text-secondary)]">
                     {selected.type} document
@@ -679,24 +710,20 @@ export default function ResumeManagerPage() {
                       {label}
                     </span>
 
-                    <span className="text-right font-medium">
-                      {value}
-                    </span>
+                    <span className="text-right font-medium">{value}</span>
                   </div>
                 ))}
               </div>
 
               <p className="mt-4 text-xs leading-relaxed text-[var(--text-secondary)]">
-                This panel currently displays document metadata.
-                Content extraction and AI resume analysis require
-                backend integration.
+                This panel displays document metadata stored in MySQL.
               </p>
 
               <div className="mt-6 flex flex-col gap-2 sm:flex-row">
                 {!selected.active && (
                   <button
                     onClick={() => {
-                      setActiveResume(selected.id);
+                      handleSetActive(selected.id);
                       setSelectedId(null);
                     }}
                     className="primary-button flex-1 rounded-xl py-3 text-sm font-semibold"
@@ -706,13 +733,10 @@ export default function ResumeManagerPage() {
                 )}
 
                 <button
-                  onClick={() => downloadResume(selected)}
+                  onClick={() => handleDownload(selected)}
                   className="secondary-button flex-1 rounded-xl py-3 text-sm font-semibold"
                 >
-                  <Download
-                    fontSize="small"
-                    className="mr-2 align-middle"
-                  />
+                  <Download fontSize="small" className="mr-2 align-middle" />
                   Download
                 </button>
               </div>

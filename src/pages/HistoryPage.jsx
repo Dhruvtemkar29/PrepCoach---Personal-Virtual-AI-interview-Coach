@@ -1,5 +1,5 @@
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   Search,
@@ -19,6 +19,7 @@ import {
   FileText,
 } from "lucide-react";
 import GlassCard from "../components/ui/GlassCard";
+import { getInterviewHistory } from "../services/interviewService";
 
 // -----------------------------------------------------
 // DEMO INTERVIEW DATA
@@ -377,12 +378,74 @@ function EmptyState({ onClear }) {
 // MAIN HISTORY PAGE
 // -----------------------------------------------------
 
+function mapDatabaseSession(item) {
+  const dateObj = item.started_at ? new Date(item.started_at) : new Date();
+  const date = dateObj.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+  const time = dateObj.toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return {
+    id: item.interview_id,
+    role: item.target_role || "Software Developer",
+    company: "PrepCoach Practice",
+    type: item.interview_type,
+    difficulty: item.difficulty,
+    date,
+    time,
+    duration: `${item.duration_minutes || 15} min`,
+    score: item.overall_score ? Math.round(Number(item.overall_score)) : 0,
+    status: item.status === "completed" ? "Completed" : "In Progress",
+    questions: Number(item.total_questions) || 5,
+    answered: Number(item.answered_questions) || 0,
+    feedback:
+      item.detailed_feedback ||
+      "Live session recorded and stored in PrepCoach MySQL database.",
+    technicalScore: item.technical_score
+      ? Math.round(Number(item.technical_score))
+      : null,
+    communicationScore: item.communication_score
+      ? Math.round(Number(item.communication_score))
+      : null,
+    confidenceScore: item.confidence_score
+      ? Math.round(Number(item.confidence_score))
+      : null,
+  };
+}
+
 export default function HistoryPage() {
-  const [sessions, setSessions] = useState(initialSessions);
+  const [sessions, setSessions] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [selectedSession, setSelectedSession] = useState(null);
+
+  const loadHistory = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await getInterviewHistory();
+      if (Array.isArray(data) && data.length > 0) {
+        setSessions(data.map(mapDatabaseSession));
+      } else {
+        setSessions(initialSessions);
+      }
+    } catch (err) {
+      console.warn("Unable to fetch remote interview history:", err.message);
+      setSessions(initialSessions);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
 
   // FILTERING
 
