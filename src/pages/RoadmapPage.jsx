@@ -22,6 +22,7 @@ import {
   fetchRoadmapTasks,
   toggleRoadmapTask,
   resetRoadmapProgress,
+  fetchRoadmapRecommendations,
 } from "../services/roadmapService";
 
 const STORAGE_KEY = "prepcoach-roadmap-progress";
@@ -162,6 +163,7 @@ function mapDatabaseTasksToWeeks(dbTasks) {
 export default function RoadmapPage() {
   const [weeks, setWeeks] = useState(getInitialWeeks);
   const [activeWeek, setActiveWeek] = useState(1);
+  const [recommendations, setRecommendations] = useState(null);
 
   const loadRoadmap = useCallback(async () => {
     try {
@@ -171,6 +173,15 @@ export default function RoadmapPage() {
       }
     } catch (err) {
       console.warn("Using local roadmap fallback:", err.message);
+    }
+
+    try {
+      const recData = await fetchRoadmapRecommendations();
+      if (recData) {
+        setRecommendations(recData);
+      }
+    } catch (recErr) {
+      console.info("Using default learning path:", recErr.message);
     }
   }, []);
 
@@ -390,6 +401,44 @@ export default function RoadmapPage() {
           </div>
         </div>
       </GlassCard>
+
+      {/* AI Personalized Recommendation Banner */}
+      {recommendations && (
+        <GlassCard className="!border-red-500/30 bg-gradient-to-r from-red-500/10 via-transparent to-transparent">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-xs font-bold text-red-400">
+                <AutoAwesome fontSize="small" />
+                <span>AI ADAPTIVE STRATEGY &bull; {recommendations.readiness_status}</span>
+              </div>
+              <h3 className="font-sora text-lg font-bold">
+                Focus on: {recommendations.primary_focus_area}
+              </h3>
+              <p className="max-w-2xl text-xs leading-relaxed text-[var(--text-secondary)]">
+                {recommendations.actionable_tip}
+              </p>
+              {recommendations.recommended_topics?.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {recommendations.recommended_topics.map((t) => (
+                    <span
+                      key={t}
+                      className="rounded-lg border border-red-500/20 bg-red-500/10 px-2.5 py-1 text-[11px] font-medium text-red-300"
+                    >
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="shrink-0">
+              <span className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-2.5 text-xs font-semibold text-red-400 inline-block">
+                Priority Goal
+              </span>
+            </div>
+          </div>
+        </GlassCard>
+      )}
 
       {/* Learning Path */}
       <section>

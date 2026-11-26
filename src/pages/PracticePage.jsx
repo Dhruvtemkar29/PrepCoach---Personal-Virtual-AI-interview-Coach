@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Link } from "react-router-dom";
+import { evaluateAIAnswer } from "../services/aiService";
 import {
   AutoAwesome,
   UploadFile,
@@ -302,12 +303,13 @@ export default function PracticePage() {
     setRecording(false);
   };
 
-  const submitAnswer = () => {
+  const submitAnswer = async () => {
     if (recording) stopRecording();
 
+    const lastAnswer = transcript.trim() || "No spoken answer provided.";
     const updatedAnswers = [
       ...answers,
-      transcript.trim() || "No spoken answer provided.",
+      lastAnswer,
     ];
 
     setAnswers(updatedAnswers);
@@ -318,6 +320,25 @@ export default function PracticePage() {
       setQuestionIndex((current) => current + 1);
     } else {
       clearInterval(timerRef.current);
+
+      try {
+        const evalRes = await evaluateAIAnswer({
+          question_text: questions[questionIndex] || "Interview question",
+          answer_text: lastAnswer,
+          role: role || "Software Developer",
+          duration_seconds: seconds,
+        });
+
+        if (evalRes && evalRes.evaluation) {
+          const evalScore = Math.round(evalRes.evaluation.overall_score || 85);
+          setScore(evalScore);
+          localStorage.setItem("pc_lastScore", String(evalScore));
+          setScreen("results");
+          return;
+        }
+      } catch (err) {
+        console.warn("Using fallback evaluation:", err.message);
+      }
 
       // Demonstration score only — connect the ML evaluation API for real scoring.
       const demoScore = 87;

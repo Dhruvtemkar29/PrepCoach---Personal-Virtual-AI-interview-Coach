@@ -1,4 +1,5 @@
-const API_URL = "http://localhost:5000/api/roadmap";
+const API_ORIGIN = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_URL = `${API_ORIGIN}/api/roadmap`;
 
 function getStoredToken() {
   return (
@@ -87,4 +88,20 @@ export async function resetRoadmapProgress() {
   }
 
   return data;
+}
+
+// 5. Fetch personalized AI learning recommendations
+export async function fetchRoadmapRecommendations() {
+  const response = await fetch(`${API_URL}/recommendations`, {
+    method: "GET",
+    headers: getAuthHeaders(),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to fetch recommendations.");
+  }
+
+  return data.recommendations;
 }

@@ -168,3 +168,77 @@ exports.resetRoadmap = async (req, res) => {
     });
   }
 };
+
+// 5. GET PERSONALIZED AI LEARNING RECOMMENDATIONS
+exports.getRecommendations = async (req, res) => {
+  try {
+    // 1. Fetch user target role & profile
+    const [profiles] = await db.query(
+      "SELECT target_role, experience_level FROM user_profiles WHERE user_id = ?",
+      [req.user.userId]
+    );
+    const targetRole = (profiles.length && profiles[0].target_role) ? profiles[0].target_role : "Software Developer";
+
+    // 2. Fetch user's latest evaluations
+    const [evalRows] = await db.query(
+      `SELECT e.overall_score, e.technical_score, e.communication_score, e.confidence_score, e.strengths, e.improvements, i.difficulty
+       FROM evaluations e
+       JOIN interviews i ON e.interview_id = i.interview_id
+       WHERE i.user_id = ?
+       ORDER BY e.evaluated_at DESC
+       LIMIT 3`,
+      [req.user.userId]
+    );
+
+    let avgScore = 75;
+    let techScore = 75;
+    let commScore = 75;
+    let confScore = 75;
+    let allStrengths = [];
+    let allImprovements = [];
+
+    if (evalRows.length > 0) {
+      avgScore = evalRows.reduce((a, b) => a + Number(b.overall_score || 75), 0) / evalRows.length;
+      techScore = evalRows.reduce((a, b) => a + Number(b.technical_score || 75), 0) / evalRows.length;
+      commScore = evalRows.reduce((a, b) => a + Number(b.communication_score || 75), 0) / evalRows.length;
+      confScore = evalRows.reduce((a, b) => a + Number(b.confidence_score || 75), 0) / evalRows.length;
+
+      evalRows.forEach((r) => {
+        try {
+          if (r.strengths) {
+            const s = typeof r.strengths === "string" ? JSON.parse(r.strengths) : r.strengths;
+            if (Array.isArray(s)) allStrengths.push(...s);
+          }
+          if (r.improvements) {
+            const imp = typeof r.improvements === "string" ? JSON.parse(r.improvements) : r.improvements;
+            if (Array.isArray(imp)) allImprovements.push(...imp);
+          }
+        } catch {}
+      });
+    }
+
+    const { getRecommendations } = require("../services/aiService");
+    const recs = await getRecommendations({
+      role: targetRole,
+      average_score: Math.round(avgScore),
+      technical_score: Math.round(techScore),
+      communication_score: Math.round(commScore),
+      confidence_score: Math.round(confScore),
+      strengths: allStrengths.slice(0, 3),
+      improvements: allImprovements.slice(0, 3),
+      difficulty_preference: evalRows[0]?.difficulty || "medium",
+    });
+
+    return res.json({
+      success: true,
+      recommendations: recs,
+    });
+  } catch (error) {
+    console.error("Get recommendations error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to generate recommendations.",
+      error: error.message,
+    });
+  }
+};

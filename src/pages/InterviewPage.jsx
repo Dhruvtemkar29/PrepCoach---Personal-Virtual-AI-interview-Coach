@@ -9,6 +9,10 @@ import {
   saveEvaluation as apiSaveEvaluation,
 } from "../services/interviewService";
 import { getResumes } from "../services/resumeService";
+import {
+  generateAIQuestions,
+  evaluateAISession,
+} from "../services/aiService";
 
 import {
   AutoAwesome,
@@ -663,7 +667,12 @@ function SummaryItem({ label, value }) {
 // -----------------------------------------------------
 
 function LiveInterview({ config, onFinish, onBack }) {
-  const questions = questionBank[config.type] || questionBank.Technical;
+  const questions =
+    config?.questions?.length > 0
+      ? config.questions
+      : config?.dbQuestions?.length > 0
+      ? config.dbQuestions.map((q) => q.question_text)
+      : questionBank[config.type] || questionBank.Technical;
 
   const [current, setCurrent] = useState(0);
   const [answers, setAnswers] = useState({});
@@ -1072,7 +1081,12 @@ function Legend({ color, label }) {
 // -----------------------------------------------------
 
 function ResultsPage({ config, answers, evaluation, onRestart }) {
-  const questions = questionBank[config.type] || questionBank.Technical;
+  const questions =
+    config?.questions?.length > 0
+      ? config.questions
+      : config?.dbQuestions?.length > 0
+      ? config.dbQuestions.map((q) => q.question_text)
+      : questionBank[config.type] || questionBank.Technical;
 
   const answeredCount = questions.filter((question, index) =>
     answers[index]?.trim()
@@ -1335,8 +1349,25 @@ export default function InterviewPage() {
 
   const startInterview = async (settings) => {
     try {
-      const selectedQuestions =
+      let selectedQuestions =
         questionBank[settings.type] || questionBank.Technical;
+
+      // Request dynamic questions from AI microservice
+      try {
+        const aiQ = await generateAIQuestions({
+          role: settings.role,
+          interview_type: settings.type.toLowerCase(),
+          difficulty: settings.difficulty.toLowerCase(),
+          num_questions: 5,
+          job_description: settings.jobDescription || null,
+        });
+        if (aiQ && aiQ.questions && aiQ.questions.length > 0) {
+          selectedQuestions = aiQ.questions.map((q) => q.question_text);
+        }
+      } catch (aiErr) {
+        console.info("Using curated question bank fallback:", aiErr.message);
+      }
+
       const questionsPayload = selectedQuestions.map((q, idx) => ({
         question_text: q,
         category: settings.type,
@@ -1350,6 +1381,7 @@ export default function InterviewPage() {
 
       setConfig({
         ...settings,
+        questions: selectedQuestions,
         interviewId: res.interview_id,
         dbQuestions: res.questions,
       });
@@ -1443,10 +1475,24 @@ export default function InterviewPage() {
 
     setEvaluation(evaluationPayload);
 
-    // Save to MySQL database
+    // Save to MySQL database & trigger AI evaluation
     if (finalConfig?.interviewId) {
       try {
         await apiFinishInterview(finalConfig.interviewId);
+
+        // Attempt live AI session evaluation
+        try {
+          const aiEvalRes = await evaluateAISession(finalConfig.interviewId);
+          if (aiEvalRes && aiEvalRes.evaluation) {
+            setEvaluation(aiEvalRes.evaluation);
+            setStage("results");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+            return;
+          }
+        } catch (aiEvalErr) {
+          console.info("AI evaluation fallback to rubric:", aiEvalErr.message);
+        }
+
         await apiSaveEvaluation(finalConfig.interviewId, evaluationPayload);
       } catch (err) {
         console.error("Failed to save evaluation to backend:", err);
