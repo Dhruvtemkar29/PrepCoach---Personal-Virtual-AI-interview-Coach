@@ -177,7 +177,7 @@ exports.getRecommendations = async (req, res) => {
       "SELECT target_role, experience_level FROM user_profiles WHERE user_id = ?",
       [req.user.userId]
     );
-    const targetRole = profiles.length ? profiles[0].target_role : "Software Developer";
+    const targetRole = (profiles.length && profiles[0].target_role) ? profiles[0].target_role : "Software Developer";
 
     // 2. Fetch user's latest evaluations
     const [evalRows] = await db.query(

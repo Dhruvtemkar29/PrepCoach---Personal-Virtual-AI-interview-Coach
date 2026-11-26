@@ -22,3 +22,23 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment variables — NEVER commit real secrets
+.env
+.env.local
+.env.production
+.env.*.local
+backend/.env
+ai-service/.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# Uploads (local dev only)
+backend/uploads/resumes/*.pdf
+backend/uploads/resumes/*.docx

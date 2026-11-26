@@ -25,7 +25,7 @@ async function extractResumeText(absoluteFilePath, originalFilename) {
       const res = await fetch(`${AI_SERVICE_URL}/api/ai/resume/extract-text`, {
         method: "POST",
         body: formData,
-        signal: AbortSignal.timeout(10000),
+        signal: AbortSignal.timeout(30000),
       });
 
       if (res.ok) {
@@ -185,7 +185,7 @@ async function chatWithCoach({ message, context = null, history = [] }) {
       context,
       history,
     }),
-    signal: AbortSignal.timeout(10000),
+    signal: AbortSignal.timeout(30000),
   });
 
   if (!res.ok) {

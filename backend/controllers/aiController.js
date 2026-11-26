@@ -277,9 +277,39 @@ exports.chatWithCoach = async (req, res) => {
       });
     }
 
+    let enrichedContext = context || "";
+
+    // If user is authenticated, attach their real interview stats from MySQL
+    try {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith("Bearer ")) {
+        const jwt = require("jsonwebtoken");
+        const decoded = jwt.verify(authHeader.split(" ")[1], process.env.JWT_SECRET);
+        if (decoded && decoded.userId) {
+          const [statsRows] = await db.query(
+            `SELECT COUNT(i.interview_id) AS total_interviews,
+                    ROUND(AVG(e.overall_score), 1) AS avg_score,
+                    MAX(e.overall_score) AS best_score
+             FROM interviews i
+             LEFT JOIN evaluations e ON i.interview_id = e.interview_id
+             WHERE i.user_id = ?`,
+            [decoded.userId]
+          );
+          if (statsRows.length > 0 && statsRows[0].total_interviews > 0) {
+            const s = statsRows[0];
+            enrichedContext = `${enrichedContext ? enrichedContext + " | " : ""}Total Interviews: ${s.total_interviews}, Average Score: ${s.avg_score ?? "N/A"}%, Best Score: ${s.best_score ?? "N/A"}%`;
+          } else {
+            enrichedContext = `${enrichedContext ? enrichedContext + " | " : ""}User has completed 0 interviews so far.`;
+          }
+        }
+      }
+    } catch {
+      // Ignore invalid/expired token for public chat
+    }
+
     const reply = await aiService.chatWithCoach({
       message,
-      context,
+      context: enrichedContext || null,
       history,
     });
 

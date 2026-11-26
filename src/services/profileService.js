@@ -1,4 +1,5 @@
-const API_BASE_URL = "http://localhost:5000/api/profile";
+const API_ORIGIN = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_BASE_URL = `${API_ORIGIN}/api/profile`;
 
 function getAuthHeaders() {
   const token =

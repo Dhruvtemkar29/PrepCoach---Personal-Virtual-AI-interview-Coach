@@ -6,7 +6,7 @@ from services.gemini_client import gemini_service
 logger = logging.getLogger(__name__)
 
 class RecommendationRequest(BaseModel):
-    role: str = "Software Developer"
+    role: Optional[str] = "Software Developer"
     average_score: Optional[float] = 75.0
     technical_score: Optional[float] = 75.0
     communication_score: Optional[float] = 75.0
